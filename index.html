@@ -1,12 +1,15 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>周末城市探索指南</title>
-</head>
-<body>
-    <h1>周末城市探索指南</h1>
-    <p>发现这个周末，最适合你的城市玩法。</p>
-</body>
-</html>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#244e40"><meta name="description" content="给周末一点新鲜感。按天气、预算与兴趣发现武汉，组队出发，记录城市里的小冒险。">
+<title>周末出逃 · 城市探索指南</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect rx='18' width='64' height='64' fill='%23244e40'/%3E%3Cpath d='M15 43 31 15l18 28H15Zm16-28v28' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./styles.css"><script defer src="./app.js"></script>
+</head><body>
+<header class="header"><div class="header-inner"><a class="brand" href="#discover"><span class="brand-icon">↗</span><span>周末出逃<small>WEEKEND WANDER</small></span></a><nav aria-label="主导航"><a href="#discover" data-nav="discover">发现周末</a><a href="#plans" data-nav="plans">我的计划 <span id="plan-count">0</span></a><a href="#journal" data-nav="journal">探索手账</a></nav><button class="profile" id="profile-button" aria-label="查看我的探索手账"><span class="avatar">W</span><span>周末探索家</span></button></div></header>
+<main id="main"></main>
+<footer><a class="footer-brand" href="#discover">周末出逃 ↗</a><span>把日子过成值得收藏的小事。</span><small>产品交互原型 · 武汉示例活动与天气 · 数据仅保存在当前浏览器</small></footer>
+<dialog id="modal"><button class="close" aria-label="关闭弹窗">×</button><div id="modal-content"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+</body></html>
