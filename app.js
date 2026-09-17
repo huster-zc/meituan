@@ -357,9 +357,7 @@ function detail(id) {
   );
 }
 function plans() {
-  const list = state.plans.map(getActivity).filter(Boolean);
-  $("#main").innerHTML =
-    `<div class="page-title"><span class="eyebrow">YOUR NEXT LITTLE ADVENTURE</span><h1>周末，已经有着落了。</h1><p>把喜欢的地方放进计划，再约上同频的人。</p></div>${list.length ? `<div class="plan-summary"><div><strong>${list.length}</strong><span>个想去的地方</span></div><div><strong>¥${list.reduce((s, a) => s + a.price, 0)}</strong><span>人均活动预算 · 不含交通</span></div><div><strong>${list.reduce((s, a) => s + a.hours, 0)} h</strong><span>活动时长合计 · 自行安排日期</span></div></div><div class="plan-list">${list.map((a) => `<article class="plan-row"><img src="${photo(a.image)}" alt="${a.category}氛围配图"><div class="plan-info"><h3>${a.title}</h3>${!WeekendActivities.available(a, filters.date) ? `<p class="unavailable-note">${esc(a.statusNote || "不在当前周末有效期，请重新核实安排")}</p>` : ""}<p>${a.place} · ${a.hours} 小时 · ${a.price === 0 ? "免费" : `¥${a.price}/人`}</p><p>${state.teams[a.id] ? `已创建组队：${esc(state.teams[a.id].name)} · ${esc(state.teams[a.id].size)} 人计划` : "还没有约人？发起一个周末小队。"}</p></div><div class="row-actions"><button class="secondary" onclick="teamForm('${a.id}')">${state.teams[a.id] ? "查看小队" : "组队出发"}</button><button class="primary" onclick="journalForm('${a.id}')">打卡记录</button><button class="delete" onclick="removePlan('${a.id}')">移出计划</button></div></article>`).join("")}</div>` : empty("留一个位置，给下次出发", "去发现页挑选一个喜欢的活动，点击「加入计划」。")}`;
+  renderPlanner(state.plans.map(getActivity).filter(Boolean));
 }
 function removePlan(id) {
   state.plans = state.plans.filter((x) => x !== id);
@@ -375,8 +373,24 @@ function teamForm(id) {
     detail(id);
     return;
   }
+  const routeConfig = location.hash === "#plans" ? itineraryConfig() : null;
+  let plannedArrival;
+  if (routeConfig) {
+    try {
+      const visit = WeekendPlanner.schedule(
+        itineraryPlaces(
+          state.plans.map(getActivity).filter(Boolean),
+          routeConfig,
+        ),
+        routeConfig,
+      ).visits.find((v) => v.id === id);
+      if (visit) plannedArrival = WeekendPlanner.clock(visit.start);
+    } catch {
+      /* Invalid settings are explained in the planner. */
+    }
+  }
   openModal(
-    `<div class="modal-inner"><span class="eyebrow">GOOD COMPANY, GREAT WEEKEND</span><h2>${t ? "我的周末小队" : "一个人想去，一起就出发。"}</h2><p>${a.title}</p><form id="team-form"><label class="field">小队名称<input name="name" maxlength="30" required placeholder="例如：周末不宅家小分队" value="${esc(t?.name || "周末出逃小分队")}"></label><label class="field">出发日期<input name="date" type="date" required value="${esc(t?.date || filters.date)}" min="${localDate()}"></label><label class="field">计划人数<select name="size">${[
+    `<div class="modal-inner"><span class="eyebrow">GOOD COMPANY, GREAT WEEKEND</span><h2>${t ? "我的周末小队" : "一个人想去，一起就出发。"}</h2><p>${a.title}</p><form id="team-form"><label class="field">小队名称<input name="name" maxlength="30" required placeholder="例如：周末不宅家小分队" value="${esc(t?.name || "周末出逃小分队")}"></label><label class="field">出发日期<input name="date" type="date" required value="${esc(t?.date || routeConfig?.date || filters.date)}" min="${localDate()}"></label><label class="field">计划人数<select name="size">${[
       2, 3, 4, 5, 6,
     ]
       .filter((n) => n <= a.group)
@@ -386,7 +400,7 @@ function teamForm(id) {
       )
       .join(
         "",
-      )}</select></label><label class="field">集合地点与时间<input name="meeting" maxlength="100" required placeholder="例如：14:00 地铁站 A 出口" value="${esc(t?.meeting || `${a.time.match(/\d{2}:\d{2}/)?.[0] || "时间待定"}，具体集合点出发前商量`)}"></label><p class="notice">组队原型：小队保存在本机，可通过邀请链接分享安排。暂不提供实时成员报名与消息同步；请另行联系伙伴确认。</p><button class="primary full" type="submit">${t ? "保存小队并生成邀请" : "创建小队并生成邀请"} ↗</button></form></div>`,
+      )}</select></label><label class="field">集合地点与时间<input name="meeting" maxlength="100" required placeholder="例如：14:00 地铁站 A 出口" value="${esc(t?.meeting || `${plannedArrival || a.time.match(/\d{2}:\d{2}/)?.[0] || "时间待定"}，具体集合点出发前商量`)}"></label><p class="notice">组队原型：小队保存在本机，可通过邀请链接分享安排。暂不提供实时成员报名与消息同步；请另行联系伙伴确认。</p><button class="primary full" type="submit">${t ? "保存小队并生成邀请" : "创建小队并生成邀请"} ↗</button></form></div>`,
   );
   $("#team-form").onsubmit = (e) => {
     e.preventDefault();
