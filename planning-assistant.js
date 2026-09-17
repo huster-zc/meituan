@@ -78,8 +78,16 @@
       };
     if (/有效期|开放日|下架/.test(pending.reason))
       return { reason: pending.reason, kind: "place" };
-    const outbound = c.roundTrip ? P.travel({ id: "_origin" }, a, c) : null;
-    const inbound = c.roundTrip ? P.travel(a, { id: "_return" }, c) : null;
+    const endpoint = (id, name) => ({
+      id,
+      coords: c.mapPoints?.[id]?.name === name ? c.mapPoints[id].coords : null,
+    });
+    const outbound = c.roundTrip
+      ? P.travel(endpoint("_origin", c.origin), a, c)
+      : null;
+    const inbound = c.roundTrip
+      ? P.travel(a, endpoint("_return", c.destination), c)
+      : null;
     if (c.roundTrip && (!outbound || !inbound))
       return {
         reason: `缺少${!outbound ? "出发地 → " + (a.place || a.title) : (a.place || a.title) + " → 返程目的地"}的交通耗时。补录后可检查这站的往返安排。`,

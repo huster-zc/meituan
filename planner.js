@@ -1,5 +1,9 @@
 (function (root) {
   "use strict";
+  const Road =
+    typeof module !== "undefined" && module.exports
+      ? require("./road-routing.js")
+      : root.WeekendRoadRouting;
   const modes = ["auto", "walk", "bike", "transit", "car"];
   function time(value) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value))
@@ -57,6 +61,20 @@
     const speed = { walk: 4.5, bike: 12, transit: 22, car: 28 }[mode],
       buffer = { walk: 0, bike: 5, transit: 18, car: 10 }[mode];
     const custom = override?.minutes !== undefined && override?.minutes !== "";
+    const road = Road?.lookup(a, b, mode, c.roadLegs);
+    if (!custom && road) {
+      if (road.unreachable) return null;
+      return {
+        km: road.km,
+        mode,
+        minutes: road.minutes,
+        estimated: true,
+        verified: false,
+        roadResolved: true,
+        source: "osrm",
+        fetchedAt: road.fetchedAt,
+      };
+    }
     if (!custom && km === null) return null;
     const minutes = custom
       ? Number(override.minutes)
@@ -64,7 +82,7 @@
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600)
       throw new Error("转场时长须为 1–600 分钟");
     return {
-      km,
+      km: road && !road.unreachable ? road.km : km,
       mode,
       minutes,
       estimated: !custom,
@@ -89,8 +107,20 @@
       throw new Error("每段机动时间须为 0–120 分钟");
     if (c.roundTrip && (!c.origin?.trim() || !c.destination?.trim()))
       throw new Error("请填写出发地和返程目的地");
-    const origin = { id: "_origin" },
-      destination = { id: "_return" };
+    const origin = {
+        id: "_origin",
+        coords:
+          c.mapPoints?._origin?.name === c.origin
+            ? c.mapPoints._origin.coords
+            : null,
+      },
+      destination = {
+        id: "_return",
+        coords:
+          c.mapPoints?._return?.name === c.destination
+            ? c.mapPoints._return.coords
+            : null,
+      };
     const weekday = new Date(c.date + "T00:00:00Z").getUTCDay();
     const pending = [],
       valid = [];

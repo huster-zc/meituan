@@ -1,13 +1,19 @@
 function departurePlace(id, c = itineraryConfig()) {
   if (id === "_origin")
-    return { id, place: c.origin, locationName: c.origin, title: "出发地" };
+    return roadPoint(
+      { id, place: c.origin, locationName: c.origin, title: "出发地" },
+      c,
+    );
   if (id === "_return")
-    return {
-      id,
-      place: c.destination,
-      locationName: c.destination,
-      title: "返程目的地",
-    };
+    return roadPoint(
+      {
+        id,
+        place: c.destination,
+        locationName: c.destination,
+        title: "返程目的地",
+      },
+      c,
+    );
   return itineraryPlaces([getActivity(id)], c)[0];
 }
 function departureLinks(a) {
@@ -15,7 +21,7 @@ function departureLinks(a) {
   return `<div class="departure-actions"><button class="secondary" onclick="openNavigation('${a.id}')"><i data-icon=compass></i> 地图与导航</button><button class="text-button" onclick="editDeparture('${a.id}')">${a.id === "culture-2026" ? "选择具体场次" : "核实入口与预约"} <i data-icon=arrow-up-right></i></button>${source ? `<a class="text-button" href="${esc(source)}" target="_blank" rel="noopener noreferrer">我的预约 / 场次来源 <i data-icon=external></i></a>` : ""}</div>`;
 }
 function departureSettings(c) {
-  return `<div class="departure-settings"><label class="route-check"><input name="roundTrip" type="checkbox" ${c.roundTrip ? "checked" : ""}> 包含出发与返程，检查能否按时返回</label>${c.roundTrip ? `<div class="route-fields"><label class="field">出发地（学校 / 地址 / 入口）<input name="origin" maxlength="100" value="${esc(c.origin)}" placeholder="例如：武汉大学珞珈门"></label><label class="field">返程目的地<input name="destination" maxlength="100" value="${esc(c.destination)}" placeholder="例如：学校宿舍区入口"></label></div>` : ""}<label class="field">每段交通额外机动（分钟）<input name="buffer" type="number" min="0" max="120" required value="${c.buffer}" style="max-width:160px"></label><p class="route-help">启用后，上方时间分别表示从出发地出门、最晚回到返程目的地。请在“核实交通耗时”中填写出发与返程路段；未填写时不会按 0 分钟排程。修改日期、全程方式或首尾地点会清除原有交通核实。</p></div>`;
+  return `<div class="departure-settings"><label class="route-check"><input name="roundTrip" type="checkbox" ${c.roundTrip ? "checked" : ""}> 包含出发与返程，检查能否按时返回</label>${c.roundTrip ? `<div class="route-fields"><label class="field">出发地（学校 / 地址 / 入口）<input name="origin" maxlength="100" value="${esc(c.origin)}" placeholder="例如：武汉大学珞珈门"></label><label class="field">返程目的地<input name="destination" maxlength="100" value="${esc(c.destination)}" placeholder="例如：学校宿舍区入口"></label></div>` : ""}<label class="field">每段交通额外机动（分钟）<input name="buffer" type="number" min="0" max="120" required value="${c.buffer}" style="max-width:160px"></label><p class="route-help">启用后，上方时间分别表示从出发地出门、最晚回到返程目的地。可在行程地图选定首尾位置后计算道路，或手动填写出发与返程耗时；未知路程不会按 0 分钟排程。修改日期、全程方式或首尾地点会清除原有交通核实。</p></div>`;
 }
 function departureChecklist(places, c, result) {
   const raw = WeekendDeparture.issues(places, c, result),

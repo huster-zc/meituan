@@ -61,6 +61,8 @@
       bookingUrl: safeUrl(current ? saved.bookingUrl : ""),
       slot: current ? saved.slot : null,
     };
+    if (saved.entrance?.trim() && saved.entrance.trim() !== a.place)
+      out.coords = null;
     if (custom) {
       out.windows = [saved.window];
       out.hoursKind = "user";
@@ -129,13 +131,17 @@
     }
     for (const v of result.visits) {
       const a = places.find((a) => a.id === v.id);
-      if (v.leg && !v.leg.verified)
+      if (v.leg && !v.leg.verified && !v.leg.roadResolved)
         problems.push({
           text: `前往${a.title || a.place}的交通耗时待地图核实`,
           action: "traffic",
         });
     }
-    if (result.returnLeg && !result.returnLeg.verified)
+    if (
+      result.returnLeg &&
+      !result.returnLeg.verified &&
+      !result.returnLeg.roadResolved
+    )
       problems.push({ text: "返程交通耗时待地图核实", action: "traffic" });
     return problems;
   }
