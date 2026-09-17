@@ -20,6 +20,10 @@
       order: "auto",
       stops: {},
       legs: {},
+      roundTrip: false,
+      origin: "",
+      destination: "",
+      buffer: 0,
       ...r,
     };
   }
@@ -42,23 +46,30 @@
     return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h))) * 1.35;
   }
   function travel(a, b, c) {
-    const km = distance(a.coords, b.coords),
+    const km = a.coords && b.coords ? distance(a.coords, b.coords) : null,
       override = c.legs?.[`${a.id}>${b.id}`];
     const mode =
       override?.mode &&
       modes.includes(override.mode) &&
       override.mode !== "auto"
         ? override.mode
-        : chooseMode(km, c);
+        : chooseMode(km ?? Infinity, c);
     const speed = { walk: 4.5, bike: 12, transit: 22, car: 28 }[mode],
       buffer = { walk: 0, bike: 5, transit: 18, car: 10 }[mode];
     const custom = override?.minutes !== undefined && override?.minutes !== "";
+    if (!custom && km === null) return null;
     const minutes = custom
       ? Number(override.minutes)
       : Math.max(1, Math.ceil(((km / speed) * 60 + buffer) / 5) * 5);
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600)
       throw new Error("转场时长须为 1–600 分钟");
-    return { km, mode, minutes, estimated: !custom };
+    return {
+      km,
+      mode,
+      minutes,
+      estimated: !custom,
+      verified: custom && override?.verified === true,
+    };
   }
   function schedule(items, config) {
     const c = settings(config, config?.date);
@@ -73,11 +84,18 @@
     if (start >= end)
       throw new Error("最晚结束须晚于首站到达时间（暂不支持跨天）");
     if (!modes.includes(c.mode)) throw new Error("请选择交通方式");
+    const buffer = Number(c.buffer);
+    if (!Number.isInteger(buffer) || buffer < 0 || buffer > 120)
+      throw new Error("每段机动时间须为 0–120 分钟");
+    if (c.roundTrip && (!c.origin?.trim() || !c.destination?.trim()))
+      throw new Error("请填写出发地和返程目的地");
+    const origin = { id: "_origin" },
+      destination = { id: "_return" };
     const weekday = new Date(c.date + "T00:00:00Z").getUTCDay();
     const pending = [],
       valid = [];
     for (const a of items) {
-      let reason = "";
+      let reason = a.blockedReason || "";
       if (
         a.archived ||
         (a.startDate && c.date < a.startDate) ||
@@ -86,9 +104,10 @@
       )
         reason = "所选日期不在活动有效期或开放日内";
       else if (
-        !a.coords ||
-        !Number.isFinite(a.coords.lat) ||
-        !Number.isFinite(a.coords.lon)
+        !a.locationName &&
+        (!a.coords ||
+          !Number.isFinite(a.coords.lat) ||
+          !Number.isFinite(a.coords.lon))
       )
         reason = "尚无具体场地，确认地点和场次后再安排";
       else if (!a.windows?.length)
@@ -117,20 +136,50 @@
         start: time(p.start),
         end: time(p.end),
       }));
-      valid.push({ ...a, duration, windows, preferred });
+      const entryWindow = a.entryWindow
+        ? { start: time(a.entryWindow.start), end: time(a.entryWindow.end) }
+        : null;
+      if (entryWindow && entryWindow.start >= entryWindow.end)
+        throw new Error("预约入场时段的结束须晚于开始");
+      valid.push({
+        ...a,
+        duration,
+        windows,
+        preferred,
+        entryWindow,
+        fixedStart: a.fixedStart ? time(a.fixedStart) : null,
+      });
     }
     if (valid.length > 7) throw new Error("单日最多支持 7 个地点，请分天规划");
     let best = { visits: [], penalty: Infinity, travel: Infinity, finish: end };
     function consider(visits, penalty, travelM, finish) {
+      const returnLeg =
+        c.roundTrip && visits.length
+          ? travel(
+              valid.find((a) => a.id === visits.at(-1).id),
+              destination,
+              c,
+            )
+          : null;
+      if (c.roundTrip && visits.length && !returnLeg) return;
+      const complete = finish + (returnLeg ? returnLeg.minutes + buffer : 0);
+      const totalTravel = travelM + (returnLeg ? returnLeg.minutes : 0);
+      if (complete > end) return;
       if (
         visits.length > best.visits.length ||
         (visits.length === best.visits.length &&
           (penalty < best.penalty ||
             (penalty === best.penalty &&
-              (travelM < best.travel ||
-                (travelM === best.travel && finish < best.finish)))))
+              (totalTravel < best.travel ||
+                (totalTravel === best.travel && complete < best.finish)))))
       )
-        best = { visits: [...visits], penalty, travel: travelM, finish };
+        best = {
+          visits: [...visits],
+          penalty,
+          travel: totalTravel,
+          finish: complete,
+          returnLeg,
+        };
     }
     function search(remaining, visits, now, penalty, travelM) {
       consider(visits, penalty, travelM, now);
@@ -144,22 +193,33 @@
                 a,
                 c,
               )
-            : null;
-        const arrival = now + (leg?.minutes || 0);
+            : c.roundTrip
+              ? travel(origin, a, c)
+              : null;
         const rest = remaining.filter((x) => x.id !== a.id);
+        if ((prev || c.roundTrip) && !leg) {
+          if (c.order === "manual") search(rest, visits, now, penalty, travelM);
+          continue;
+        }
+        const arrival = now + (leg ? leg.minutes + buffer : 0);
         const seen = new Set();
         for (const w of a.windows) {
-          const earliest = Math.max(arrival, w.open);
-          const candidates = [
-            earliest,
-            ...a.preferred.flatMap((p) => [
-              Math.max(earliest, p.start),
-              Math.max(earliest, p.end - a.duration),
-            ]),
-          ];
+          const earliest = Math.max(arrival, w.open, a.entryWindow?.start ?? 0);
+          const candidates =
+            a.fixedStart !== null
+              ? [a.fixedStart]
+              : [
+                  earliest,
+                  ...a.preferred.flatMap((p) => [
+                    Math.max(earliest, p.start),
+                    Math.max(earliest, p.end - a.duration),
+                  ]),
+                ];
           for (const s of candidates) {
             if (
               seen.has(s) ||
+              s < earliest ||
+              (a.entryWindow && s >= a.entryWindow.end) ||
               s > w.lastEntry ||
               s + a.duration > Math.min(w.close, end)
             )
@@ -187,6 +247,7 @@
                   wait: s - arrival,
                   duration: a.duration,
                   leg,
+                  buffer: leg ? buffer : 0,
                   outsidePreferred: outside > 0,
                 },
               ],
@@ -205,14 +266,20 @@
       if (!chosen.has(a.id))
         pending.push({
           id: a.id,
-          reason: `需要完整游玩 ${a.duration} 分钟；当前顺序、转场和开放时段下无法全部排入，可调整顺序、停留或结束时间`,
+          reason: `需要完整游玩 ${a.duration} 分钟；请检查缺失的交通耗时、场次/预约时间、闭馆与最晚返回限制，再调整行程`,
         });
     return {
       visits: best.visits,
       unscheduled: pending,
       finish: best.visits.length ? best.finish : null,
+      returnLeg: best.returnLeg || null,
       totals: {
-        travel: best.visits.reduce((s, v) => s + (v.leg?.minutes || 0), 0),
+        travel:
+          best.visits.reduce((s, v) => s + (v.leg?.minutes || 0), 0) +
+          (best.returnLeg?.minutes || 0),
+        buffer:
+          best.visits.reduce((s, v) => s + v.buffer, 0) +
+          (best.returnLeg ? buffer : 0),
         visit: best.visits.reduce((s, v) => s + v.duration, 0),
         wait: best.visits.reduce((s, v) => s + v.wait, 0),
       },

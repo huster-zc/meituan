@@ -132,7 +132,7 @@ test("road estimates vary by distance and mode and never pretend to be live", ()
 test("per-date confirmations expire and old saved plans remain usable", () => {
   const vm = require("node:vm"),
     fs = require("node:fs");
-  const ctx = {};
+  const ctx = { WeekendDeparture: require("../departure.js") };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync("planning-data.js", "utf8"), ctx);
   vm.runInContext(fs.readFileSync("planner-ui.js", "utf8"), ctx);
