@@ -176,10 +176,33 @@ function reason(a) {
               : "户外目的地 · 出发前核实天气"
             : "室内慢体验 · 随时切换好心情";
 }
+function openingHours(a) {
+  const data = WeekendPlanningData[a.id];
+  const official = data?.hoursKind === "official";
+  const ranges = data?.windows?.map((w) => `${w.open}–${w.close}`).join("、");
+  const title = official
+    ? ranges
+    : a.id === "culture-2026"
+      ? "依具体场次公布"
+      : "待确认";
+  const note = official
+    ? data.hoursNote
+    : a.id === "market"
+      ? "街区内各店营业时间不同，请以店铺公告为准。"
+      : a.id === "culture-2026"
+        ? data.hoursNote
+        : a.id === "optics-library"
+          ? "请通过场馆预约渠道核实当日开放时间。"
+          : "公共区域开放情况以现场公告为准。";
+  const preferred = data?.preferred
+    ?.map((p) => `${p.start}–${p.end}`)
+    .join("、");
+  return `<div class="card-hours"><div><span>◷ 营业 / 开放时间</span><strong>${esc(title)}</strong></div><p>${esc(note)}</p>${preferred ? `<p class="hours-preferred">建议游玩 ${esc(preferred)} · 仅供游玩安排参考</p>` : ""}</div>`;
+}
 function card(a) {
   const saved = state.saved.includes(a.id),
     planned = state.plans.includes(a.id);
-  return `<article class="card"><div class="card-image"><button class="image-open" data-detail="${a.id}" aria-label="查看${a.title}"><img src="${photo(a.image)}" alt="${a.category}氛围配图" loading="lazy"></button><span class="card-tag">${a.tag}</span><button class="save ${saved ? "saved" : ""}" data-save="${a.id}" aria-label="${saved ? "取消收藏" : "收藏"}${a.title}" aria-pressed="${saved}">${saved ? "♥" : "♡"}</button></div><div class="card-body"><div class="card-meta"><span>${a.category}</span><span>◷ ${a.hours} 小时</span></div><h3><button data-detail="${a.id}">${a.title}</button></h3><p class="card-description">${a.place}</p><div class="tags">${a.tags.map((t) => `<span class="tag">${t}</span>`).join("")}</div><div class="card-bottom"><span class="price">${a.price === 0 ? "免费" : `¥${a.price}`}<small>${a.price === 0 ? "活动费用" : "/ 人预计"}</small></span><button class="add" data-add="${a.id}">${planned ? "✓ 已加入" : "+ 加入计划"}</button></div><div class="reason">✧ ${reason(a)}</div><div class="source-meta">${a.source ? `<a href="${esc(a.source.url)}" target="_blank" rel="noopener noreferrer">官方来源 ↗</a>` : ""}<span>${esc(a.kind || "探索提案")}</span></div></div></article>`;
+  return `<article class="card"><div class="card-image"><button class="image-open" data-detail="${a.id}" aria-label="查看${a.title}"><img src="${photo(a.image)}" alt="${a.category}氛围配图" loading="lazy"></button><span class="card-tag">${a.tag}</span><button class="save ${saved ? "saved" : ""}" data-save="${a.id}" aria-label="${saved ? "取消收藏" : "收藏"}${a.title}" aria-pressed="${saved}">${saved ? "♥" : "♡"}</button></div><div class="card-body"><div class="card-meta"><span>${a.category}</span><span>◷ ${a.hours} 小时</span></div><h3><button data-detail="${a.id}">${a.title}</button></h3><p class="card-description">${a.place}</p>${openingHours(a)}<div class="tags">${a.tags.map((t) => `<span class="tag">${t}</span>`).join("")}</div><div class="card-bottom"><span class="price">${a.price === 0 ? "免费" : `¥${a.price}`}<small>${a.price === 0 ? "活动费用" : "/ 人预计"}</small></span><button class="add" data-add="${a.id}">${planned ? "✓ 已加入" : "+ 加入计划"}</button></div><div class="reason">✧ ${reason(a)}</div><div class="source-meta">${a.source ? `<a href="${esc(a.source.url)}" target="_blank" rel="noopener noreferrer">官方来源 ↗</a>` : ""}<span>${esc(a.kind || "探索提案")}</span></div></div></article>`;
 }
 function discover() {
   $("#main").innerHTML =
@@ -353,7 +376,7 @@ function detail(id) {
   const a = getActivity(id);
   if (!a) return;
   openModal(
-    `<img class="detail-image" src="${photo(a.image)}" alt="${a.category}氛围配图"><div class="modal-inner"><span class="eyebrow">${a.category} / WEEKEND IDEA</span><h2>${a.title}</h2><p>${a.desc}</p><div class="detail-facts"><div><small>目的地</small><strong>${a.place}</strong></div><div><small>人均预算估算 · 不含交通</small><strong>${a.price === 0 ? "免费" : `¥${a.price}`} · ${a.hours} 小时</strong></div><div><small>建议出发时段</small><strong>${a.time}</strong></div><div><small>天气 / 同行</small><strong>${a.indoor ? "室内 · 晴雨皆宜" : "户外 · 晴天出发"} / 1–${a.group} 人</strong></div></div><h3>一条不赶时间的路线</h3><p>${a.route}</p><h3>出发前的小提醒</h3><p>${a.transport}<br>${a.booking}</p><p class="notice">${a.tip}<br>路线和时长为本产品建议，官方公告不代表实时余票；出发前请核实开放和预约。</p>${sourceBlock(a)}<div class="modal-actions"><button class="secondary" onclick="teamForm('${a.id}')">组队出发 ↗</button><button class="primary" data-add="${a.id}">${state.plans.includes(a.id) ? "✓ 已在计划中" : "+ 加入我的计划"}</button></div></div>`,
+    `<img class="detail-image" src="${photo(a.image)}" alt="${a.category}氛围配图"><div class="modal-inner"><span class="eyebrow">${a.category} / WEEKEND IDEA</span><h2>${a.title}</h2><p>${a.desc}</p><div class="detail-facts"><div><small>目的地</small><strong>${a.place}</strong></div><div><small>人均预算估算 · 不含交通</small><strong>${a.price === 0 ? "免费" : `¥${a.price}`} · ${a.hours} 小时</strong></div><div><small>建议出发时段</small><strong>${a.time}</strong></div><div><small>天气 / 同行</small><strong>${a.indoor ? "室内 · 晴雨皆宜" : "户外 · 晴天出发"} / 1–${a.group} 人</strong></div></div>${openingHours(a)}<h3>一条不赶时间的路线</h3><p>${a.route}</p><h3>出发前的小提醒</h3><p>${a.transport}<br>${a.booking}</p><p class="notice">${a.tip}<br>路线和时长为本产品建议，官方公告不代表实时余票；出发前请核实开放和预约。</p>${sourceBlock(a)}<div class="modal-actions"><button class="secondary" onclick="teamForm('${a.id}')">组队出发 ↗</button><button class="primary" data-add="${a.id}">${state.plans.includes(a.id) ? "✓ 已在计划中" : "+ 加入我的计划"}</button></div></div>`,
   );
 }
 function plans() {
@@ -603,3 +626,4 @@ window.addEventListener("hashchange", () => {
 refresh();
 loadWeather();
 if (!storageAvailable) toast("无法读取本机记录，本次将从空白状态开始");
+
