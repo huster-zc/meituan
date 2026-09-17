@@ -18,8 +18,32 @@ function departureSettings(c) {
   return `<div class="departure-settings"><label class="route-check"><input name="roundTrip" type="checkbox" ${c.roundTrip ? "checked" : ""}> 包含出发与返程，检查能否按时返回</label>${c.roundTrip ? `<div class="route-fields"><label class="field">出发地（学校 / 地址 / 入口）<input name="origin" maxlength="100" value="${esc(c.origin)}" placeholder="例如：武汉大学珞珈门"></label><label class="field">返程目的地<input name="destination" maxlength="100" value="${esc(c.destination)}" placeholder="例如：学校宿舍区入口"></label></div>` : ""}<label class="field">每段交通额外机动（分钟）<input name="buffer" type="number" min="0" max="120" required value="${c.buffer}" style="max-width:160px"></label><p class="route-help">启用后，上方时间分别表示从出发地出门、最晚回到返程目的地。请在“核实交通耗时”中填写出发与返程路段；未填写时不会按 0 分钟排程。修改日期、全程方式或首尾地点会清除原有交通核实。</p></div>`;
 }
 function departureChecklist(places, c, result) {
-  const items = WeekendDeparture.issues(places, c, result);
-  return `<section class="departure-checklist ${items.length ? "" : "checked"}" aria-label="出发检查"><div class="route-heading"><div><span class="eyebrow">出发前，最后确认一下</span><h2>${items.length ? `还有 ${items.length} 项待核实` : "已按你确认的信息完成检查"}</h2></div><button class="primary" onclick="openTraffic()">核实交通耗时</button></div><p class="route-help">时间轴是行程草案。地图、预约与开放情况需出发前再次确认；“已确认”由你手动记录，不代表系统获取了实时票务或路况。</p>${items.length ? `<ul>${items.map((x) => `<li>${esc(x.text)} ${x.id ? `<button class="text-button" onclick="editDeparture('${x.id}')">去确认</button>` : x.action === "traffic" ? '<button class="text-button" onclick="openTraffic()">查路线并回填</button>' : ""}</li>`).join("")}</ul>` : "<p>已覆盖地点入口、当天开放、预约状态和所用交通路段。</p>"}</section>`;
+  const raw = WeekendDeparture.issues(places, c, result),
+    items = raw.filter((x) => x.action !== "traffic");
+  if (raw.some((x) => x.action === "traffic"))
+    items.push({
+      action: "traffic",
+      text: "交通耗时尚未全部核实，可集中补录后一次保存。",
+    });
+  const budget = WeekendPlanningAssistant.budget(places, budgetConfig());
+  if (!budget.complete || budget.over)
+    items.push({
+      action: "budget",
+      text: !budget.complete
+        ? "全天预算还有缺项"
+        : `全天人均费用超出预算 ¥${budget.over}`,
+    });
+  const control = (x) =>
+    x.id
+      ? `<button class="text-button" onclick="editDeparture('${x.id}')">核实本站</button>`
+      : x.action === "traffic"
+        ? '<button class="text-button" onclick="openBatchTraffic()">集中补录交通</button>'
+        : x.action === "endpoints"
+          ? '<button class="text-button" onclick="openRouteSettings()">添加出发与返程</button>'
+          : x.action === "budget"
+            ? '<button class="text-button" onclick="editDayBudget()">修改预算</button>'
+            : "<button class=\"text-button\" onclick=\"document.querySelector('#route-conflicts')?.scrollIntoView({behavior:'smooth'})\">查看冲突方案</button>";
+  return `<details class="departure-checklist ${items.length ? "" : "checked"}" aria-label="出发检查"><summary><strong>${items.length ? `草案待核实 · ${items.length} 项` : "已按你确认的信息完成检查"}</strong><span>展开集中处理</span></summary><p class="route-help">同一地点只核实一次，资料按当天保存。可以先看草案，出发前再核实。用户确认不代表实时票务与路况。</p>${items.length ? `<ul>${items.map((x) => `<li>${esc(x.text)} ${control(x)}</li>`).join("")}</ul>` : "<p>已覆盖地点资料、往返交通与全天预算。</p>"}<button class="secondary" onclick="openBatchTraffic()">集中核实交通</button></details>`;
 }
 function navigationPreview(from, to, mode) {
   if (!to?.trim()) return '<p class="notice">先填写具体地点，再查询地图。</p>';

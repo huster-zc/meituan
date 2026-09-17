@@ -30,6 +30,10 @@ function itineraryPlaces(list, c) {
   );
 }
 function renderPlanner(list) {
+  if (list.length && !state.itinerary?.budget) {
+    state.itinerary = { ...itineraryConfig(), budget: budgetConfig() };
+    persist();
+  }
   const c = itineraryConfig(),
     places = itineraryPlaces(list, c);
   let result, error;
@@ -40,21 +44,22 @@ function renderPlanner(list) {
   }
   const clock = WeekendPlanner.clock;
   $("#main").innerHTML =
-    `<div class="page-title"><span class="eyebrow">MAKE TIME FOR A LITTLE ADVENTURE</span><h1>让每一站，都刚刚好。</h1><p>把路上的时间算进去，把喜欢的地方留在合适的时刻。</p></div>${
+    `<div class="page-title"><span class="eyebrow">MAKE TIME FOR A LITTLE ADVENTURE</span><h1>让每一站，都刚刚好。</h1><p>把路上的时间算进去，把喜欢的地方留在合适的时刻。</p></div>${planningUndoHtml()}${
       !list.length
         ? empty(
             "留一个位置，给下次出发",
             "去发现页挑选一个喜欢的活动，点击「加入计划」。",
           )
         : `
- <section class="route-controls" aria-labelledby="route-title"><div class="route-heading"><div><span class="eyebrow">01 / 出发设置</span><h2 id="route-title">安排一个不赶的周末</h2></div><span class="route-badge">${c.order === "manual" ? "按手动顺序" : "智能排序"}</span></div>
+ ${renderDayBudget(list)}
+ <details class="route-controls" id="route-settings-panel" ${error ? "open" : ""}><summary>调整日期、出发时间与交通方式</summary><div class="route-heading"><div><span class="eyebrow">01 / 出发设置</span><h2 id="route-title">安排一个不赶的周末</h2></div><span class="route-badge">${c.order === "manual" ? "按手动顺序" : "智能排序"}</span></div>
  <form id="route-settings" class="route-fields"><label class="field">出行日期<input name="date" type="date" required value="${esc(c.date)}"></label><label class="field">${c.roundTrip ? "从出发地出门" : "首站到达"}<input name="start" type="time" required value="${esc(c.start)}"></label><label class="field">${c.roundTrip ? "最晚返回" : "最晚结束"}<input name="end" type="time" required value="${esc(c.end)}"></label><label class="field">交通方式<select name="mode">${routeOptions(routeModes, c.mode)}</select></label>${c.mode === "auto" ? `<label class="field">1 km 以内优先<select name="shortMode">${routeOptions({ walk: "步行", bike: "骑行" }, c.shortMode)}</select></label>` : ""}${departureSettings(c)}<button class="primary" type="submit">重新智能安排 <i data-icon=arrow-up-right></i></button></form>
- <p class="route-help">智能搭配：估算路程 ≤ 1 km 按短途偏好，超过 1 km 用公共交通。也可选择全程交通方式，再逐段修改。${c.roundTrip ? "出发和返程交通也必须填写并计入。" : "当前仅规划地点之间，请启用出发与返程检查。"}</p></section>
+ <p class="route-help">智能搭配：估算路程 ≤ 1 km 按短途偏好，超过 1 km 用公共交通。也可选择全程交通方式，再逐段修改。${c.roundTrip ? "出发和返程交通也必须填写并计入。" : "当前仅规划地点之间，请启用出发与返程检查。"}</p></details>
  ${
    error
      ? `<p class="notice" role="alert">${esc(error)}</p>`
-     : `${departureChecklist(places, c, result)}<div class="plan-summary route-summary" aria-live="polite"><div><strong>${result.visits.length}<small> / ${list.length}</small></strong><span>已排入 / 想去的地方</span></div><div><strong>${result.totals.visit}<small> 分</small></strong><span>游玩时间</span></div><div><strong>${result.totals.travel}<small> 分</small></strong><span>转场时间</span></div><div><strong>${result.finish === null ? "—" : clock(result.finish)}</strong><span>${c.roundTrip ? "回到返程目的地" : "行程结束"} · 等待 ${result.totals.wait} 分 / 机动 ${result.totals.buffer} 分</span></div></div>
- <section class="route-timeline" aria-label="行程时间轴"><div class="route-heading"><div><span class="eyebrow">02 / 今天的路线</span><h2>沿着时间，慢慢逛</h2></div><span class="route-help">优先排入更多地点，再贴近推荐时段</span></div>
+     : `<div class="plan-summary route-summary" aria-live="polite"><div><strong>${result.visits.length}<small> / ${list.length}</small></strong><span>已排入 / 想去的地方</span></div><div><strong>${result.totals.visit}<small> 分</small></strong><span>游玩时间</span></div><div><strong>${result.totals.travel}<small> 分</small></strong><span>转场时间</span></div><div><strong>${result.finish === null ? "—" : clock(result.finish)}</strong><span>${c.roundTrip ? "回到返程目的地" : "行程结束"} · 等待 ${result.totals.wait} 分 / 机动 ${result.totals.buffer} 分</span></div></div>
+ <section class="route-timeline" aria-label="行程时间轴"><div class="route-heading"><div><span class="eyebrow">02 / 行程草案</span><h2>沿着时间，慢慢逛</h2></div><span class="route-help">优先排入更多地点，再贴近推荐时段</span></div>
  ${
    result.visits
      .map((v, i) => {
@@ -66,7 +71,7 @@ function renderPlanner(list) {
    '<p class="notice">当前没有可排入的地点，请查看下面的待安排原因。</p>'
  }
  ${result.returnLeg ? `<div class="route-transfer"><strong>返程：${esc(c.destination)}</strong><p>${clock(result.visits.at(-1).end)} 离开末站 → ${clock(result.finish)} 返回 · 交通 ${result.returnLeg.minutes} 分 + 机动 ${c.buffer} 分</p><p>${result.returnLeg.verified ? "地图核实后手填" : "耗时待地图核实"}</p><button class="secondary" onclick="openTraffic('${result.visits.at(-1).id}','_return')">查看返程路线 / 修改耗时</button></div>` : ""}
- ${result.unscheduled.length ? `<div class="route-pending"><h3>留待调整 · ${result.unscheduled.length} 个地点</h3>${result.unscheduled.map((x) => `<p><strong>${esc(getActivity(x.id).title)}</strong><br>${esc(x.reason)} <button class="text-button" onclick="editDeparture('${x.id}')">核实资料</button></p>`).join("")}</div>` : ""}</section>`
+ ${renderConflicts(places, c, result)}</section>${departureChecklist(places, c, result)}`
  }
  <section class="route-places"><span class="eyebrow">03 / 地点清单</span><h2>每一站，按自己的节奏</h2><p class="route-help">清单人均活动预算约 ¥${list.reduce((sum, a) => sum + a.price, 0)} · 不含交通 · 上下移动地点可切换为手动顺序</p><div class="plan-list">${places.map((a, i) => `<article class="plan-row"><img src="${photo(a.image)}" alt="${esc(a.category)}氛围配图"><div class="plan-info"><h3>${esc(a.title)}</h3><p>${esc(a.place)} · 停留 ${a.duration} 分钟 · ${a.price === 0 ? "免费" : `¥${a.price}/人`}</p><p class="route-help">${esc(a.hoursNote)}</p><p class="route-help">${esc(WeekendDeparture.labels[a.reservation])}</p>${departureLinks(a)}${a.preferred?.length ? `<p class="route-help">推荐游玩 ${a.preferred.map((p) => `${p.start}–${p.end}`).join("、")}（偏好，可调整）</p>` : ""}${a.hoursSource ? `<a href="${a.hoursSource}" target="_blank" rel="noopener">查看开放公告 <i data-icon=external></i></a>` : ""}${a.locationSource ? ` <a href="${a.locationSource}" target="_blank" rel="noopener">查看位置 <i data-icon=external></i></a>` : ""}</div><div class="row-actions"><button class="primary" onclick="editRouteStop('${a.id}')">停留与开放时间</button><div class="route-order"><button class="secondary" ${i === 0 ? "disabled" : ""} onclick="moveRouteStop('${a.id}',-1)" aria-label="上移${esc(a.place)}"><i data-icon=arrow-up></i></button><button class="secondary" ${i === list.length - 1 ? "disabled" : ""} onclick="moveRouteStop('${a.id}',1)" aria-label="下移${esc(a.place)}"><i data-icon=arrow-down></i></button><button class="secondary" onclick="teamForm('${a.id}')">组队</button><button class="secondary" onclick="journalForm('${a.id}')">打卡</button></div><button class="delete" onclick="removePlan('${a.id}')">移出计划</button></div></article>`).join("")}</div></section>
  <p class="notice">交通为估算：地点中心坐标的直线距离 × 1.35，再按步行 / 骑行 / 公交 / 汽车速度及候车余量计算，不代表实际道路或实时路况。跨江、换乘可能明显更久，请用地图核实并修改每段分钟数。可在停留时间中预留吃饭、休息余量。坐标来自 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>。个人行程仅保存在本机。</p>`
@@ -94,7 +99,10 @@ function renderPlanner(list) {
     persist();
     plans();
   }
-  form.onchange = () => saveSettings(false);
+  form.onchange = (e) => {
+    if (["roundTrip", "mode", "shortMode"].includes(e.target.name))
+      saveSettings(false);
+  };
   form.onsubmit = (e) => {
     e.preventDefault();
     saveSettings(true);

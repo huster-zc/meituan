@@ -115,23 +115,20 @@
         text: `${result.unscheduled.length} 个地点未排入，请调整或移出清单`,
         action: "pending",
       });
+    for (const a of places) {
+      const missing = [];
+      if (!a.entranceConfirmed) missing.push("入口待核实");
+      if (!a.openingConfirmed) missing.push("当天开放待核实");
+      if (!["booked", "notRequired"].includes(a.reservation))
+        missing.push(labels[a.reservation] || labels.unknown);
+      if (missing.length)
+        problems.push({
+          id: a.id,
+          text: `${a.title || a.place}：${missing.join("、")}`,
+        });
+    }
     for (const v of result.visits) {
       const a = places.find((a) => a.id === v.id);
-      if (!a.entranceConfirmed)
-        problems.push({
-          id: a.id,
-          text: `${a.title || a.place}：具体入口待确认`,
-        });
-      if (!a.openingConfirmed)
-        problems.push({
-          id: a.id,
-          text: `${a.title || a.place}：请核实该日开放安排`,
-        });
-      if (!["booked", "notRequired"].includes(a.reservation))
-        problems.push({
-          id: a.id,
-          text: `${a.title || a.place}：${labels[a.reservation] || labels.unknown}`,
-        });
       if (v.leg && !v.leg.verified)
         problems.push({
           text: `前往${a.title || a.place}的交通耗时待地图核实`,
